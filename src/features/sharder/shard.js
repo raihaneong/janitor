@@ -1,9 +1,7 @@
 
-'use strict';
-
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const crypto = require('node:crypto');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
 const CWD = process.cwd();
 const CAPACITY = 1000;
@@ -1112,8 +1110,7 @@ Delay: ${DELAY_MS / 1000} seconds
 `);
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+async function main(args) {
 
   if (args.length === 0 || args.includes('--help')) {
     if (args.length > 1) {
@@ -1192,33 +1189,43 @@ async function main() {
 // SIGNAL HANDLING
 // --------------------------------------------------
 
-process.on('SIGINT', () => {
-  if (stopRequested) return;
+export async function runSharder(args = process.argv.slice(2)) {
+  const handleInterrupt = () => {
+    if (stopRequested) return;
 
-  stopRequested = true;
-  log('Graceful exit requested. Finishing current file operation.');
-});
+    stopRequested = true;
+    log('Graceful exit requested. Finishing current file operation.');
+  };
 
-process.on('SIGTERM', () => {
-  if (stopRequested) return;
+  const handleTermination = () => {
+    if (stopRequested) return;
 
-  stopRequested = true;
-  log('Termination requested. Finishing current file operation.');
-});
+    stopRequested = true;
+    log('Termination requested. Finishing current file operation.');
+  };
 
-main().catch(err => {
-  if (err instanceof GracefulStop || stopRequested) {
-    log('Operation interrupted. Progress preserved for recovery.');
-    process.exitCode = 130;
-    return;
+  process.on('SIGINT', handleInterrupt);
+  process.on('SIGTERM', handleTermination);
+
+  try {
+    await main(args);
+  } catch (err) {
+    if (err instanceof GracefulStop || stopRequested) {
+      log('Operation interrupted. Progress preserved for recovery.');
+      process.exitCode = 130;
+      return;
+    }
+
+    error(err.message);
+
+    if (err.details && Object.keys(err.details).length) {
+      console.error(err.details);
+    }
+
+    error('Operation aborted. Inspect the filesystem before retrying.');
+    process.exitCode = 1;
+  } finally {
+    process.off('SIGINT', handleInterrupt);
+    process.off('SIGTERM', handleTermination);
   }
-
-  error(err.message);
-
-  if (err.details && Object.keys(err.details).length) {
-    console.error(err.details);
-  }
-
-  error('Operation aborted. Inspect the filesystem before retrying.');
-  process.exitCode = 1;
-});
+}
