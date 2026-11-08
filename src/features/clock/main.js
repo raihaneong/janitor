@@ -17,7 +17,6 @@ export function runClock() {
     cursorTo(stdout, 0, 0);
     clearScreenDown(stdout);
     stdout.write(`JANITOR CLOCK\n${formatter.format(new Date())}\nPress Ctrl+C to exit`);
-    cursorTo(stdout, 0, 0);
   };
 
   const stop = (exitCode) => {
