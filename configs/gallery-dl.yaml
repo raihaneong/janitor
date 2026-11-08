@@ -1,0 +1,76 @@
+# outputs to ix/[platform]/[author author_id_ifExist]
+# bilibili mustn't use lang in its url
+
+extractor:
+  base-directory: "ix/"
+  directory:
+    - "{category}"
+    - "{author[name]|author|user[name]|user|uploader_id|uploader|'unknown'!W}"
+  cookies: ["firefox"]
+  archive: "~/fles/flsfl/logs/anpr.sqlite3"
+  path-restrict: "windows"
+  path-extended: false
+  sleep: [1.0, 3.0]
+  sleep-request: [1.0, 3.0]
+  retries: 5
+  timeout: 30.0
+
+  ytdl:
+    enabled: true
+    module: "yt_dlp"
+    directory:
+      - "{extractor_key|extractor|'ytdl'!l}"
+      - "{uploader|'unknown'!W}{uploader_id|channel_id:? [/]/}"
+    filename: "{_now:%y%m%d}_{uploader[b0:40]|'unknown'!W}_{id[b0:15]}_{title[b0:65]!W}{description[b0:80]!W:?_//}.{extension}"
+    raw-options:
+      format_sort: ["res:720", "abr:100"]
+      js_runtimes:
+        node: {}
+      retries: 5
+      fragment_retries: 5
+      socket_timeout: 30
+
+  twitter:
+    videos: "ytdl"
+    sleep-request: [2.0, 5.0]
+    directory:
+      - "twitter"
+      - "{author[name]!W}"
+    filename: "{_now:%y%m%d}_{author[name]}_{tweet_id}-{num} retweeted from {source_user[name]} {content[b0:120]|'no text'!W}.{extension}"
+
+  reddit:
+    videos: "ytdl"
+    directory:
+      - "reddit"
+      - "{author|'deleted'!W}"   # Reddit has no numeric user ID
+    filename: "{_now:%y%m%d}_{author[b0:20]|'deleted'}_{id}{num:?-//} {title[b0:165]!W}.{extension}"
+
+  instagram:
+    videos: true
+    sleep: [3.0, 8.0]
+    sleep-request: [5.0, 10.0]
+    directory:
+      - "instagram"
+      - "{username!W}{owner_id|user[id]:? [/]/}"   # ID field unverified
+    filename: "{_now:%y%m%d}_{username}_{shortcode}-{num} {description[b0:150]|'no text'!W}.{extension}"
+
+  tiktok:
+    videos: "ytdl"
+    sleep-request: [2.0, 5.0]
+    directory:
+      - "tiktok"
+      - "{user[b0:24]|'unknown'!W}{user_id|author[id]:? [/]/}"   # ID field unverified
+    filename: "{_now:%y%m%d}_{user[b0:24]|'unknown'}_{id}{num:?-//} {desc[b0:150]|'no text'!W}.{extension}"
+
+downloader:
+  retries: 5
+  timeout: 30.0
+  ytdl:
+    module: "yt_dlp"
+    raw-options:
+      format_sort: ["res:720", "abr:100"]
+      js_runtimes:
+        node: {}
+      retries: 5
+      fragment_retries: 5
+      socket_timeout: 30
