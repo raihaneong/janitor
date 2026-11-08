@@ -70,23 +70,11 @@ function isMetadata(name) {
 }
 
 function shardInfo(name) {
-  let match = name.match(/^shard-v(\d+)-(\d+)$/);
+  let match = name.match(/^shard-(\d+)$/);
 
   if (match) {
     return {
       name,
-      version: Number(match[1]),
-      index: Number(match[2])
-    };
-  }
-
-  // Legacy shard names.
-  match = name.match(/^shard-(\d+)$/);
-
-  if (match) {
-    return {
-      name,
-      version: 0,
       index: Number(match[1])
     };
   }
@@ -95,7 +83,7 @@ function shardInfo(name) {
 }
 
 function compareShards(a, b) {
-  return a.version - b.version || a.index - b.index;
+  return a.index - b.index;
 }
 
 async function statRecord(filePath) {
@@ -146,13 +134,6 @@ async function readManifest() {
   try {
     const raw = await fs.readFile(MANIFEST, 'utf8');
     const manifest = JSON.parse(raw);
-
-    if (
-      manifest.version !== 1 ||
-      !Array.isArray(manifest.files)
-    ) {
-      fail('Unsupported or invalid manifest format.');
-    }
 
     return manifest;
   } catch (err) {
@@ -250,8 +231,8 @@ function sortFiles(files) {
   return files.sort((a, b) => a.mtimeMs - b.mtimeMs);
 }
 
-function makeShardName(version, index) {
-  return `shard-v${version}-${String(index).padStart(4, '0')}`;
+function makeShardName(index) {
+  return `shard-${String(index).padStart(4, '0')}`;
 }
 
 function distribute(files, names) {
@@ -742,7 +723,6 @@ async function finalizeOperation(manifest, operation) {
 
   if (operation.type === 'global') {
     manifest.files = newFiles;
-    manifest.layoutVersion = operation.newVersion;
   } else {
     const existing = new Set(
       manifest.files.map(item => item.path)
@@ -908,11 +888,6 @@ async function rebuildManifest(shards) {
   }
 
   return {
-    version: 1,
-    layoutVersion: Math.max(
-      1,
-      ...shards.map(shard => shard.version)
-    ),
     updatedAt: new Date().toISOString(),
     files
   };
@@ -987,14 +962,7 @@ async function startIncremental(manifest, shards) {
     return;
   }
 
-  const version = Math.max(
-    1,
-    ...shards.map(shard => shard.version),
-    manifest.layoutVersion || 1
-  );
-
   const indexes = shards
-    .filter(shard => shard.version === version)
     .map(shard => shard.index);
 
   const firstIndex = Math.max(0, ...indexes) + 1;
@@ -1003,7 +971,7 @@ async function startIncremental(manifest, shards) {
 
   const names = Array.from(
     { length: count },
-    (_, i) => makeShardName(version, firstIndex + i)
+    (_, i) => makeShardName(firstIndex + i)
   );
 
   const plan = distribute(files, names);
@@ -1042,16 +1010,11 @@ async function startIncremental(manifest, shards) {
 async function startGlobal(manifest, shards) {
   const files = sortFiles(await discoverGlobal(shards));
 
-  const newVersion = Math.max(
-    0,
-    ...shards.map(shard => shard.version)
-  ) + 1;
-
   const count = Math.ceil(files.length / CAPACITY);
 
   const names = Array.from(
     { length: count },
-    (_, i) => makeShardName(newVersion, i + 1)
+    (_, i) => makeShardName(i + 1)
   );
 
   const plan = distribute(files, names);
@@ -1068,7 +1031,6 @@ async function startGlobal(manifest, shards) {
   }
 
   log(`Discovered ${files.length} files globally.`);
-  log(`Preparing layout version ${newVersion}.`);
   log(`Planned ${count} shards.`);
 
   const operation = {
@@ -1076,7 +1038,6 @@ async function startGlobal(manifest, shards) {
     type: 'global',
     stage: 'moving',
     createdAt: new Date().toISOString(),
-    newVersion,
     files: plan.files,
     shards: plan.shards,
     oldShardDirs: shards.map(shard => shard.name)
@@ -1105,13 +1066,7 @@ async function dryRun() {
 
   if (!files.length) return;
 
-  const version = Math.max(
-    1,
-    ...shards.map(shard => shard.version)
-  );
-
   const indexes = shards
-    .filter(shard => shard.version === version)
     .map(shard => shard.index);
 
   const firstIndex = Math.max(0, ...indexes) + 1;
@@ -1121,7 +1076,7 @@ async function dryRun() {
     i < Math.ceil(files.length / CAPACITY);
     i++
   ) {
-    const name = makeShardName(version, firstIndex + i);
+    const name = makeShardName(firstIndex + i);
     const amount = Math.min(
       CAPACITY,
       files.length - i * CAPACITY
