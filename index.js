@@ -3,6 +3,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { scrapeImages } from './src/features/scraper/main.js';
 import { runSharder } from './src/features/sharder/shard.js';
+import { runClock } from './src/features/clock/main.js';
 
 await yargs(hideBin(process.argv))
   .scriptName('janitor')
@@ -20,6 +21,7 @@ await yargs(hideBin(process.argv))
       console.log(`Halo, ${argv.name}!`);
     }
   )
+  .command('clock', 'Show a live clock', () => {}, () => runClock())
   .command(
     'scrape <url>',
     'Download images from an authorized page',
