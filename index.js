@@ -4,7 +4,7 @@ import { hideBin } from 'yargs/helpers';
 import { scrapeImages } from './src/features/scraper/main.js';
 import { runSharder } from './src/features/sharder/shard.js';
 import { runClock } from './src/features/clock/main.js';
-import { zipFolder } from './src/features/zipper/main.js';
+import { zipFolder, unzipFile } from './src/features/zipper/main.js';
 
 await yargs(hideBin(process.argv))
   .scriptName('janitor')
@@ -56,22 +56,61 @@ await yargs(hideBin(process.argv))
     }
   )
   .command(
-    'zip <folder_name>',
-    'Zip a pointed folder',
+    'compress <folder_name>',
+    'Compress a pointed folder into a zip',
     (yargs) => {
       return yargs
         .positional('folder_name', {
-          describe: 'Folder to zip',
+          describe: 'Folder to compress',
           type: 'string',
         })
         .option('output', {
           describe: 'Output zip file name',
           type: 'string',
+        })
+        .option('apply', {
+          describe: 'Execute the operation; without it only preview changes',
+          type: 'boolean',
+          default: false,
         });
     },
     async (argv) => {
       try {
-        await zipFolder(argv.folder_name, { output: argv.output });
+        await zipFolder(argv.folder_name, {
+          output: argv.output,
+          apply: argv.apply,
+        });
+      } catch (err) {
+        console.error(`[ERROR] ${err.message}`);
+        process.exitCode = 1;
+      }
+    }
+  )
+  .command(
+    'decompress <zip_file>',
+    'Decompress a pointed zip file',
+    (yargs) => {
+      return yargs
+        .positional('zip_file', {
+          describe: 'Zip file to decompress',
+          type: 'string',
+        })
+        .option('output', {
+          describe: 'Target directory to extract into',
+          type: 'string',
+        })
+        .option('apply', {
+          describe: 'Execute the operation; without it only preview changes',
+          type: 'boolean',
+          default: false,
+        });
+    },
+    async (argv) => {
+      try {
+        await unzipFile(argv.zip_file, {
+          output: argv.output,
+          apply: argv.apply,
+        });
       } catch (err) {
         console.error(`[ERROR] ${err.message}`);
         process.exitCode = 1;
@@ -81,7 +120,7 @@ await yargs(hideBin(process.argv))
   .option('verbose', {
     alias: 'v',
     type: 'boolean',
-    description: 'Tampilkan log lebih detail',
+    description: 'shows verbose output',
   })
   .strictCommands()
   .strictOptions()
