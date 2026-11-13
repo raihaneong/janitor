@@ -14,6 +14,28 @@ function formatSize(bytes) {
   return `${bytes} B`;
 }
 
+const FILE_LOCK_CODES = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY']);
+const FILE_LOCK_RETRIES = 5;
+
+async function withFileLockRetry(operation) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= FILE_LOCK_RETRIES; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      if (!FILE_LOCK_CODES.has(err.code)) {
+        throw err;
+      }
+
+      lastError = err;
+      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+    }
+  }
+
+  throw lastError;
+}
+
 async function walkFiles(dir, rootDir = dir) {
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   const files = [];
@@ -163,13 +185,12 @@ async function flattenRootDir(dir) {
   const children = await fs.promises.readdir(inner, { withFileTypes: true });
 
   for (const child of children) {
-    await fs.promises.rename(
-      path.join(inner, child.name),
-      path.join(dir, child.name)
+    await withFileLockRetry(() =>
+      fs.promises.rename(path.join(inner, child.name), path.join(dir, child.name))
     );
   }
 
-  await fs.promises.rmdir(inner);
+  await withFileLockRetry(() => fs.promises.rmdir(inner));
 }
 
 function listZipEntries(zipPath) {
